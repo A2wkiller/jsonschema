@@ -6,7 +6,7 @@ from unittest import TestCase
 
 from jsonschema import FormatChecker, ValidationError
 from jsonschema.exceptions import FormatError
-from jsonschema.validators import Draft4Validator
+from jsonschema.validators import Draft3Validator, Draft4Validator
 
 BOOM = ValueError("Boom!")
 BANG = ZeroDivisionError("Bang!")
@@ -19,6 +19,29 @@ def boom(thing):
 
 
 class TestFormatChecker(TestCase):
+    def test_draft3_time_rejects_malformed_strings(self):
+        # See https://github.com/python-jsonschema/jsonschema/issues/1610
+        validator = Draft3Validator(
+            {"format": "time"},
+            format_checker=Draft3Validator.FORMAT_CHECKER,
+        )
+        malformed = [
+            "1:2:3",  # unpadded
+            "1:02:03",
+            "01:2:03",
+            "01:02:3",
+            "01:0\u0662:03",  # non-ASCII digit
+            " 01:02:03",
+            "01:02:03 ",
+        ]
+        for instance in malformed:
+            with self.subTest(instance=instance):
+                self.assertFalse(validator.is_valid(instance))
+
+        self.assertTrue(validator.is_valid("01:02:03"))
+        self.assertTrue(validator.is_valid("23:59:59"))
+        self.assertTrue(validator.is_valid(123))  # non-strings are valid
+
     def test_it_can_validate_no_formats(self):
         checker = FormatChecker(formats=())
         self.assertFalse(checker.checkers)
